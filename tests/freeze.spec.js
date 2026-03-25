@@ -263,22 +263,31 @@ test('FreezeHost 自动续期', async () => {
                 let coins = '未知';
                 try {
                     const coinText = await page.evaluate(() => {
-                        const coinIcon = document.querySelector('.fa-coins');
-                        if (coinIcon && coinIcon.parentElement) {
-                            return coinIcon.parentElement.innerText.trim();
+                        // 1. 尝试精确定位 "AVAILABLE BALANCE"
+                        const allEls = Array.from(document.querySelectorAll('*'));
+                        const balEl = allEls.find(e => e.children.length === 0 && e.textContent.includes('AVAILABLE BALANCE'));
+                        if (balEl) {
+                            let p = balEl.parentElement;
+                            while(p && p.innerText.length < 200) {
+                                if (/\d/.test(p.innerText)) return p.innerText;
+                                p = p.parentElement;
+                            }
                         }
+                        // 2. 尝试找 .fa-coins
+                        const coinIcon = document.querySelector('.fa-coins');
+                        if (coinIcon && coinIcon.parentElement) return coinIcon.parentElement.innerText.trim();
+                        // 3. Fallback: 找含有 Coins 的短文本
                         const elements = Array.from(document.querySelectorAll('span, div, p, h1, h2, h3, h4, h5, h6, b, strong'));
                         for (const el of elements) {
-                            if (el.innerText && el.innerText.includes('Coins') && el.innerText.length < 20) {
-                                return el.innerText.trim();
-                            }
+                            if (el.innerText && el.innerText.includes('Coins') && el.innerText.length < 20) return el.innerText.trim();
                         }
                         return '未知';
                     });
                     
-                    const match = coinText.match(/[\d,]+(\.\d+)?/);
-                    if (match) {
-                        coins = match[0];
+                    const matches = coinText.match(/[\d,]+(\.\d+)?/g);
+                    if (matches) {
+                        // 取出最长的一串数字（如 2,078）
+                        coins = matches.reduce((longest, current) => current.length > longest.length ? current : longest, matches[0]);
                     }
                     console.log(`💰 当前金币: ${coins}`);
                 } catch (e) {
